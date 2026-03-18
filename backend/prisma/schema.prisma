@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPERADMIN
+  MANAGER
+  PHARMACIST
+}
+
+enum SaleStatus {
+  COMPLETED
+  VOIDED
+  RETURNED
+}
+
+enum StockStatus {
+  ACTIVE
+  EXPIRED
+  DEPLETED
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  phone        String?
+  password     String
+  role         Role      @default(PHARMACIST)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sales        Sale[]
+  stockEntries StockEntry[]
+  sessions     ScanSession[]
+}
+
+model Category {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+
+  products  Product[]
+}
+
+model Supplier {
+  id        String    @id @default(uuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  createdAt DateTime  @default(now())
+
+  products  Product[]
+  purchases Purchase[]
+}
+
+model Product {
+  id                  String    @id @default(uuid())
+  name                String
+  barcode             String?   @unique
+  categoryId          String?
+  supplierId          String?
+  unitType            String    @default("tablet")
+  unitsPerBox         Int       @default(1)
+  purchasePrice       Decimal   @db.Decimal(10, 2)
+  sellingPrice        Decimal   @db.Decimal(10, 2)
+  requiresPrescription Boolean  @default(false)
+  reorderLevel        Int       @default(10)
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  category     Category?    @relation(fields: [categoryId], references: [id])
+  supplier     Supplier?    @relation(fields: [supplierId], references: [id])
+  stockEntries StockEntry[]
+  saleItems    SaleItem[]
+}
+
+model StockEntry {
+  id            String      @id @default(uuid())
+  productId     String
+  batchNumber   String
+  expiryDate    DateTime
+  quantity      Int
+  remainingQty  Int
+  purchasePrice Decimal     @db.Decimal(10, 2)
+  sellingPrice  Decimal     @db.Decimal(10, 2)
+  status        StockStatus @default(ACTIVE)
+  receivedById  String
+  purchaseId    String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  product      Product    @relation(fields: [productId], references: [id])
+  receivedBy   User       @relation(fields: [receivedById], references: [id])
+  purchase     Purchase?  @relation(fields: [purchaseId], references: [id])
+  saleItems    SaleItem[]
+}
+
+model Purchase {
+  id           String   @id @default(uuid())
+  supplierId   String?
+  invoiceNo    String?
+  totalAmount  Decimal  @db.Decimal(10, 2) @default(0)
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  supplier     Supplier?    @relation(fields: [supplierId], references: [id])
+  stockEntries StockEntry[]
+}
+
+model Sale {
+  id           String     @id @default(uuid())
+  saleNumber   String     @unique
+  cashierId    String
+  subtotal     Decimal    @db.Decimal(10, 2)
+  discount     Decimal    @db.Decimal(10, 2) @default(0)
+  total        Decimal    @db.Decimal(10, 2)
+  status       SaleStatus @default(COMPLETED)
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  cashier      User       @relation(fields: [cashierId], references: [id])
+  items        SaleItem[]
+}
+
+model SaleItem {
+  id           String   @id @default(uuid())
+  saleId       String
+  productId    String
+  stockEntryId String?
+  quantity     Int
+  unitPrice    Decimal  @db.Decimal(10, 2)
+  total        Decimal  @db.Decimal(10, 2)
+
+  sale         Sale        @relation(fields: [saleId], references: [id])
+  product      Product     @relation(fields: [productId], references: [id])
+  stockEntry   StockEntry? @relation(fields: [stockEntryId], references: [id])
+}
+
+model Expense {
+  id         String   @id @default(uuid())
+  date       DateTime
+  category   String
+  amount     Decimal  @db.Decimal(10, 2)
+  notes      String?
+  createdAt  DateTime @default(now())
+}
+
+model ScanSession {
+  id        String   @id @default(uuid())
+  userId    String
+  sessionId String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
